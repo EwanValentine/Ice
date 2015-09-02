@@ -1,0 +1,6 @@
+package: main
+
+import:
+  - package: github.com/gin-gonic/gin
+  - package: github.com/nfnt/resize
+
