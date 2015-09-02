@@ -1,7 +1,13 @@
 package controllers
 
 import (
+	"bytes"
 	"github.com/gin-gonic/gin"
+	"github.com/nfnt/resize"
+	"image/jpeg"
+	"log"
+	"os"
+	"strconv"
 )
 
 type ResizeController struct {
@@ -15,14 +21,30 @@ func (rc ResizeController) Resize(c *gin.Context) {
 
 	height := c.Query("height")
 	width := c.Query("width")
+	filepath := c.Query("file")
 
-	var Result struct {
-		Width  string `json:"width"`
-		Height string `json:"height"`
+	h64, err := strconv.ParseUint(height, 10, 32)
+	w64, err := strconv.ParseUint(width, 10, 32)
+	h := uint(h64)
+	w := uint(w64)
+
+	file, err := os.Open("./test_images/" + filepath)
+
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	Result.Height = height
-	Result.Width = width
+	image, err := jpeg.Decode(file)
 
-	c.JSON(200, Result)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	m := resize.Resize(w, h, image, resize.Lanczos3)
+
+	buf := new(bytes.Buffer)
+	jpeg.Encode(buf, m, nil)
+	response := buf.Bytes()
+
+	c.Data(200, "image/jpeg", response)
 }
