@@ -3,6 +3,5 @@ package: main
 import:
   - package: github.com/gin-gonic/gin
   - package: github.com/nfnt/resize
-  - package: github.com/mitchellh/goamz/s3
-  - package: github.com/mitchellh/goamz/aws
+  - package: github.com/gin-gonic/contrib/jwt
 

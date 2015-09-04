@@ -2,7 +2,9 @@ package main
 
 import (
 	"bitbucket.org/65twenty/ice/controllers"
+	"github.com/gin-gonic/contrib/jwt"
 	"github.com/gin-gonic/gin"
+	"time"
 )
 
 func CorsMiddleware() gin.HandlerFunc {

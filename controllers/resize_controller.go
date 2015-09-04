@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"bitbucket.org/65twenty/ice/services"
 	"bytes"
 	"github.com/gin-gonic/gin"
 	"github.com/nfnt/resize"
@@ -12,6 +11,7 @@ import (
 )
 
 type ResizeController struct {
+	test string "Hello"
 }
 
 func NewResizeController() *ResizeController {
@@ -24,6 +24,8 @@ func (rc ResizeController) Resize(c *gin.Context) {
 	width := c.Query("width")
 	filepath := c.Query("file")
 
+	log.Print(rc.test)
+
 	h64, err := strconv.ParseUint(height, 10, 32)
 	w64, err := strconv.ParseUint(width, 10, 32)
 	h := uint(h64)
@@ -34,36 +36,6 @@ func (rc ResizeController) Resize(c *gin.Context) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	image, err := jpeg.Decode(file)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	m := resize.Resize(w, h, image, resize.Lanczos3)
-
-	buf := new(bytes.Buffer)
-	jpeg.Encode(buf, m, nil)
-	response := buf.Bytes()
-
-	c.Data(200, "image/jpeg", response)
-}
-
-func (rc ResizeController) FromS3(c *gin.Context) {
-
-	height := c.Query("height")
-	width := c.Query("width")
-	filepath := c.Query("file")
-
-	h64, err := strconv.ParseUint(height, 10, 32)
-	w64, err := strconv.ParseUint(width, 10, 32)
-	h := uint(h64)
-	w := uint(w64)
-
-	s3 := services.S3("submissions")
-
-	file, err := s3.Get(filepath)
 
 	image, err := jpeg.Decode(file)
 
