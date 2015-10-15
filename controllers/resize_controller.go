@@ -11,7 +11,6 @@ import (
 )
 
 type ResizeController struct {
-	test string "Hello"
 }
 
 func NewResizeController() *ResizeController {
@@ -20,34 +19,28 @@ func NewResizeController() *ResizeController {
 
 func (rc ResizeController) Resize(c *gin.Context) {
 
+	auth, err := aws.EnvAuth()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	client := s3.New(auth, aws.EUWest)
+
+	file, header, err := c.Request.FormFile("file")
+	filename := header.Filename
+
 	height := c.Query("height")
 	width := c.Query("width")
-	filepath := c.Query("file")
-
-	log.Print(rc.test)
 
 	h64, err := strconv.ParseUint(height, 10, 32)
 	w64, err := strconv.ParseUint(width, 10, 32)
 	h := uint(h64)
 	w := uint(w64)
 
-	file, err := os.Open("./test_images/" + filepath)
+	m := resize.Resize(w, h, file, resize.Lanczos3)
 
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	image, err := jpeg.Decode(file)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	m := resize.Resize(w, h, image, resize.Lanczos3)
-
-	buf := new(bytes.Buffer)
-	jpeg.Encode(buf, m, nil)
-	response := buf.Bytes()
+	client.Put(os.Getenv("AWS_BUCKET_NAME"), m)
 
 	c.Data(200, "image/jpeg", response)
 }

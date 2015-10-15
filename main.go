@@ -30,5 +30,5 @@ func main() {
 
 	r.GET("/resize", rc.Resize)
 
-	r.Run(":8000")
+	r.Run(":3000")
 }

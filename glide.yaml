@@ -4,4 +4,4 @@ import:
   - package: github.com/gin-gonic/gin
   - package: github.com/nfnt/resize
   - package: github.com/gin-gonic/contrib/jwt
-
+  - package: github.com/mitchellh/goamz/aws
