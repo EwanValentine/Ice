@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/mitchellh/goamz/aws"
 	"github.com/mitchellh/goamz/s3"
 	"github.com/nfnt/resize"
 	"image/jpeg"
@@ -13,23 +12,31 @@ import (
 	"strconv"
 )
 
-type ResizeController struct {
+type Collection struct {
+	Items []*Resize
 }
 
-func NewResizeController() *ResizeController {
-	return &ResizeController{}
+type Resize struct {
+	File   string `json:"file" binding:"required"`
+	Width  string `json:"width"`
+	Height string `json:"height"`
+}
+
+type ResizeController struct {
+	bucket *s3.Bucket
+}
+
+func NewResizeController(bucket *s3.Bucket) *ResizeController {
+	return &ResizeController{
+		bucket,
+	}
 }
 
 func (rc *ResizeController) Resize(c *gin.Context) {
 
-	auth, err := aws.EnvAuth()
-
-	if err != nil {
-		log.Fatal(err)
+	for index, element := range c.Request.PostForm("item") {
+		fmt.Println(element.Height)
 	}
-
-	client := s3.New(auth, aws.EUWest)
-	bucket := client.Bucket("20.65twenty.com")
 
 	file, header, err := c.Request.FormFile("file")
 	filename := header.Filename
@@ -41,17 +48,16 @@ func (rc *ResizeController) Resize(c *gin.Context) {
 	height := c.PostForm("height")
 	width := c.PostForm("width")
 
-	fmt.Println("Height: " + height)
-	fmt.Println("Width: " + width)
-
 	finalFile := rc.Crop(height, width, file)
 
-	err = bucket.Put(filename, finalFile, "image/jpeg", s3.BucketOwnerFull)
-	if err != nil {
-		panic(err)
-	}
+	go rc.Upload(filename, finalFile, "image/jpeg", s3.BucketOwnerFull)
 
-	c.JSON(200, gin.H{"filename": header.Filename})
+	c.JSON(200, gin.H{"filename": filename})
+}
+
+func (rc *ResizeController) Upload(filename string, file []byte, enctype string, acl s3.ACL) (error, string) {
+	err := rc.bucket.Put(filename, file, enctype, acl)
+	return err, filename
 }
 
 func (rc *ResizeController) Crop(height string, width string, file multipart.File) []byte {
