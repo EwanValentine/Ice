@@ -51,12 +51,8 @@ func (rc *ResizeController) Resize(c *gin.Context) {
 		// Crop file
 		finalFile := rc.Crop(height, width, file)
 
-		fmt.Println(finalFile)
-		fmt.Println(height)
-		fmt.Println(width)
-
 		// Upload file
-		// go rc.Upload(filename, finalFile, "image/jpeg", s3.BucketOwnerFull)
+		go rc.Upload(filename, finalFile, "image/jpeg", s3.BucketOwnerFull)
 	}
 
 	c.JSON(200, gin.H{"filename": filename})
@@ -78,8 +74,8 @@ func (rc *ResizeController) Crop(height string, width string, file multipart.Fil
 	}
 
 	// Convert string height and width into 64int
-	h64, err := strconv.ParseUint(height, 10, 32)
 	w64, err := strconv.ParseUint(width, 10, 32)
+	h64, err := strconv.ParseUint(height, 10, 32)
 
 	// Convert 64int to 32int
 	h := uint(h64)
@@ -91,5 +87,7 @@ func (rc *ResizeController) Crop(height string, width string, file multipart.Fil
 	// Create new buffer of file
 	buf := new(bytes.Buffer)
 	err = jpeg.Encode(buf, m, nil)
+
+	// Return buffer
 	return buf.Bytes()
 }
