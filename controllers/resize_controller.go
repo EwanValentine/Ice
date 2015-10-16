@@ -1,10 +1,8 @@
 package controllers
 
 import (
-	"bytes"
 	"github.com/gin-gonic/gin"
 	"github.com/nfnt/resize"
-	"image/jpeg"
 	"log"
 	"os"
 	"strconv"

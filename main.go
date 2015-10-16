@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bitbucket.org/65twenty/ice/controllers"
+	"github.65twenty.com/65twenty/Ice/controllers"
 	"github.com/gin-gonic/gin"
 )
 
