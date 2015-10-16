@@ -36,8 +36,12 @@ func NewResizeController(bucket *s3.Bucket) *ResizeController {
 // Resize - function for taking images and meta data and resizing
 func (rc *ResizeController) Resize(c *gin.Context) {
 
-	for index, element := range c.Request.PostForm("item") {
-		fmt.Println(element.Height)
+	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
+		log.Fatal(err)
+	}
+
+	for index, element := range c.Request.MultipartForm.File["item"] {
+		fmt.Println(element.Header.Filename)
 	}
 
 	// Get file
