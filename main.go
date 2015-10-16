@@ -2,9 +2,7 @@ package main
 
 import (
 	"bitbucket.org/65twenty/ice/controllers"
-	"github.com/gin-gonic/contrib/jwt"
 	"github.com/gin-gonic/gin"
-	"time"
 )
 
 func CorsMiddleware() gin.HandlerFunc {
@@ -28,7 +26,7 @@ func main() {
 	r := gin.Default()
 	r.Use(CorsMiddleware())
 
-	r.GET("/resize", rc.Resize)
+	r.POST("/resize", rc.Resize)
 
 	r.Run(":3000")
 }

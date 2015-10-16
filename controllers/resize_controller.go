@@ -42,5 +42,5 @@ func (rc ResizeController) Resize(c *gin.Context) {
 
 	client.Put(os.Getenv("AWS_BUCKET_NAME"), m)
 
-	c.Data(200, "image/jpeg", response)
+	c.Data(200, gin.H{"filename": header.Filename})
 }
