@@ -2,10 +2,11 @@ package controllers
 
 import (
 	"bytes"
-	"fmt"
+	_ "fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/goamz/s3"
 	"github.com/nfnt/resize"
+	"image"
 	"image/jpeg"
 	"log"
 	"mime/multipart"
@@ -32,8 +33,6 @@ func (rc *ResizeController) Resize(c *gin.Context) {
 
 	// Get file
 	file, header, err := c.Request.FormFile("file")
-
-	fmt.Println(file)
 
 	// Get original filename
 	filename := header.Filename
@@ -67,8 +66,10 @@ func (rc *ResizeController) Upload(filename string, file []byte, enctype string,
 // Crops image and returns []byte of file
 func (rc *ResizeController) Crop(height string, width string, file multipart.File) []byte {
 
-	// Decode file to image file
-	image, err := jpeg.Decode(file)
+	// Decode image
+	image, _, err := image.Decode(file)
+
+	// If error, of course
 	if err != nil {
 		log.Fatal(err)
 	}
