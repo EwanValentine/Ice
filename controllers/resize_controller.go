@@ -2,15 +2,15 @@ package controllers
 
 import (
 	"bytes"
-	_ "fmt"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/goamz/s3"
 	"github.com/nfnt/resize"
-	"image"
+	_ "image"
 	"image/jpeg"
 	"log"
 	"mime/multipart"
-	"strconv"
+	_ "strconv"
 )
 
 type ResizeController struct {
@@ -33,19 +33,24 @@ func (rc *ResizeController) Resize(c *gin.Context) {
 
 	// Get file
 	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		panic(err)
+	}
 
 	// Get original filename
 	filename := header.Filename
-	if err != nil {
-		log.Fatal(err)
-	}
+
+	fmt.Println(c.Request.MultipartForm.Value["set"])
 
 	// Foreach set of dimensions given
-	for _, element := range c.Request.MultipartForm.Value {
+	for _, element := range c.Request.MultipartForm.Value["set"] {
 
 		// Get height and width
 		height := element[0]
-		width := element[0]
+		width := element[1]
+
+		fmt.Println(element[0])
+		fmt.Println(element[1])
 
 		// Crop file
 		finalFile := rc.Crop(height, width, file)
@@ -64,23 +69,23 @@ func (rc *ResizeController) Upload(filename string, file []byte, enctype string,
 }
 
 // Crops image and returns []byte of file
-func (rc *ResizeController) Crop(height string, width string, file multipart.File) []byte {
+func (rc *ResizeController) Crop(height uint8, width uint8, file multipart.File) []byte {
 
 	// Decode image
-	image, _, err := image.Decode(file)
+	image, err := jpeg.Decode(file)
 
 	// If error, of course
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	// Convert string height and width into 64int
-	w64, err := strconv.ParseUint(width, 10, 32)
-	h64, err := strconv.ParseUint(height, 10, 32)
+	//w64, err := strconv.ParseUint(width, 10, 32)
+	// h64, err := strconv.ParseUint(height, 10, 32)
 
 	// Convert 64int to 32int
-	h := uint(h64)
-	w := uint(w64)
+	h := uint(height)
+	w := uint(width)
 
 	// Runs re-size function
 	m := resize.Resize(w, h, image, resize.Lanczos3)
@@ -88,6 +93,10 @@ func (rc *ResizeController) Crop(height string, width string, file multipart.Fil
 	// Create new buffer of file
 	buf := new(bytes.Buffer)
 	err = jpeg.Encode(buf, m, nil)
+
+	if err != nil {
+		panic(err)
+	}
 
 	// Return buffer
 	return buf.Bytes()
