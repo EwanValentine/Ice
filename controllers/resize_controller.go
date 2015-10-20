@@ -6,17 +6,26 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/goamz/s3"
 	"github.com/nfnt/resize"
-	_ "image"
+	"image"
 	"image/jpeg"
-	"log"
+	_ "image/png"
 	"mime/multipart"
-	_ "strconv"
+	"reflect"
+	"strconv"
 )
 
+// Form data struct
+type Form struct {
+	Width  []string `form:"width[]"`
+	Height []string `form:"height[]"`
+}
+
+// Controller type
 type ResizeController struct {
 	bucket *s3.Bucket
 }
 
+// Controller instance
 func NewResizeController(bucket *s3.Bucket) *ResizeController {
 	return &ResizeController{
 		bucket,
@@ -26,10 +35,11 @@ func NewResizeController(bucket *s3.Bucket) *ResizeController {
 // Resize - function for taking images and meta data and resizing
 func (rc *ResizeController) Resize(c *gin.Context) {
 
-	// Don't really know what this bit does to be fair
-	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
-		log.Fatal(err)
-	}
+	// Empty formdata struct
+	formData := &Form{}
+
+	// Bind empty struct to context
+	c.Bind(formData)
 
 	// Get file
 	file, header, err := c.Request.FormFile("file")
@@ -40,23 +50,30 @@ func (rc *ResizeController) Resize(c *gin.Context) {
 	// Get original filename
 	filename := header.Filename
 
-	fmt.Println(c.Request.MultipartForm.Value["set"])
-
 	// Foreach set of dimensions given
-	for _, element := range c.Request.MultipartForm.Value["set"] {
+	for i := 0; i < len(formData.Width); i++ {
 
 		// Get height and width
-		height := element[0]
-		width := element[1]
-
-		fmt.Println(element[0])
-		fmt.Println(element[1])
+		height := formData.Width[i]
+		width := formData.Height[i]
 
 		// Crop file
 		finalFile := rc.Crop(height, width, file)
 
+		// Include dimensions in filename to stop file being overriden
+		fileNameDimensions := "w" + width + "h" + height + "-" + filename
+
 		// Upload file
-		go rc.Upload(filename, finalFile, "image/jpeg", s3.BucketOwnerFull)
+		err, _ := rc.Upload("content/"+fileNameDimensions, finalFile, "image/jpeg", s3.BucketOwnerFull)
+
+		if err != nil {
+			panic(err)
+		}
+
+		// Seek file back to first byte, so it can be re-cropped
+		if _, err := file.Seek(0, 0); err != nil {
+			panic(err)
+		}
 	}
 
 	c.JSON(200, gin.H{"filename": filename})
@@ -69,23 +86,25 @@ func (rc *ResizeController) Upload(filename string, file []byte, enctype string,
 }
 
 // Crops image and returns []byte of file
-func (rc *ResizeController) Crop(height uint8, width uint8, file multipart.File) []byte {
+func (rc *ResizeController) Crop(height string, width string, file multipart.File) []byte {
+
+	fmt.Println(reflect.TypeOf(file))
 
 	// Decode image
-	image, err := jpeg.Decode(file)
+	image, _, err := image.Decode(file)
 
-	// If error, of course
+	// If error, panic
 	if err != nil {
 		panic(err)
 	}
 
 	// Convert string height and width into 64int
-	//w64, err := strconv.ParseUint(width, 10, 32)
-	// h64, err := strconv.ParseUint(height, 10, 32)
+	w64, err := strconv.ParseUint(width, 10, 32)
+	h64, err := strconv.ParseUint(height, 10, 32)
 
 	// Convert 64int to 32int
-	h := uint(height)
-	w := uint(width)
+	h := uint(h64)
+	w := uint(w64)
 
 	// Runs re-size function
 	m := resize.Resize(w, h, image, resize.Lanczos3)
