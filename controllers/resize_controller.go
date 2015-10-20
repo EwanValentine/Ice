@@ -66,7 +66,7 @@ func (rc *ResizeController) GetResize(c *gin.Context) {
 
 	// Create new output buffer
 	buf := new(bytes.Buffer)
-	jpeg.Encode(buf, m, nil)
+	jpeg.Encode(buf, cropped, nil)
 
 	// Response
 	response := buf.Bytes()
