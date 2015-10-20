@@ -4,6 +4,13 @@
 
 1. If you have glide install - `$ glide update` if not, `$ go get`
 2. `$ go run main.go` or `$ go build && ./Ice`
+3. Add the following to your profile
+
+```
+export AWS_S3_BUCKET=""
+export AWS_ACCESS_KEY_ID=""
+export AWS_SECRET_ACCESS_KEY=""
+```
 
 ## Api Docs
 
