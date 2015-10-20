@@ -7,11 +7,23 @@
 
 ## Api Docs
 
+Multiple dimension image cropping.
+
 ```
 POST /resize
 
 BODY
 file (file)
-width (string)
-height (string)
+width[] (integer)
+height[] (integer)
+width[]
+height[]
+```
+This will crop the same file with several different sets of dimensions.
+
+'On the fly' image resizing.
+
+```
+GET /resize?file=my-file.jpg&width=60&height=60
+
 ```

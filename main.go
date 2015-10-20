@@ -31,7 +31,8 @@ func main() {
 	r.Use(CorsMiddleware())
 
 	// Routes
-	r.POST("/resize", rc.Resize)
+	r.POST("/resize", rc.PostResize)
+	r.GET("/resize", rc.GetResize)
 
 	r.Run(":3000")
 }

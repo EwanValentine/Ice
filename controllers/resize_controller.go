@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/goamz/s3"
 	"github.com/nfnt/resize"
@@ -10,7 +9,6 @@ import (
 	"image/jpeg"
 	_ "image/png"
 	"mime/multipart"
-	"reflect"
 	"strconv"
 )
 
@@ -32,8 +30,53 @@ func NewResizeController(bucket *s3.Bucket) *ResizeController {
 	}
 }
 
-// Resize - function for taking images and meta data and resizing
-func (rc *ResizeController) Resize(c *gin.Context) {
+// GetRezize - On the fly cropping and resizing.
+func (rc *ResizeController) GetResize(c *gin.Context) {
+
+	// Set height and width
+	width := c.Query("width")
+	height := c.Query("height")
+
+	// Get file
+	filename := c.Query("file")
+
+	// Get image
+	file, err := rc.bucket.Get("content/" + filename)
+
+	if err != nil {
+		panic(err)
+	}
+
+	// Create new byte stream
+	img := bytes.NewReader(file)
+
+	// Decode image
+	decoded, _, err := image.Decode(img)
+
+	// Convert string height and width into 64int
+	w64, err := strconv.ParseUint(width, 10, 32)
+	h64, err := strconv.ParseUint(height, 10, 32)
+
+	// Convert 64int to 32int
+	h := uint(h64)
+	w := uint(w64)
+
+	// Crop image
+	cropped := resize.Resize(w, h, decoded, resize.Lanczos3)
+
+	// Create new output buffer
+	buf := new(bytes.Buffer)
+	jpeg.Encode(buf, m, nil)
+
+	// Response
+	response := buf.Bytes()
+
+	// Return cropped image
+	c.Data(200, "image/jpeg", response)
+}
+
+// PostResize - function for taking images and meta data and resizing
+func (rc *ResizeController) PostResize(c *gin.Context) {
 
 	// Empty formdata struct
 	formData := &Form{}
@@ -76,7 +119,7 @@ func (rc *ResizeController) Resize(c *gin.Context) {
 		}
 	}
 
-	c.JSON(200, gin.H{"filename": filename})
+	c.JSON(200, gin.H{"_message": true})
 }
 
 // Uploads file to S3
@@ -87,8 +130,6 @@ func (rc *ResizeController) Upload(filename string, file []byte, enctype string,
 
 // Crops image and returns []byte of file
 func (rc *ResizeController) Crop(height string, width string, file multipart.File) []byte {
-
-	fmt.Println(reflect.TypeOf(file))
 
 	// Decode image
 	image, _, err := image.Decode(file)
