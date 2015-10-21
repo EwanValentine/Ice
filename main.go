@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"github.65twenty.com/65twenty/Ice/controllers"
 	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/goamz/aws"
@@ -25,6 +26,10 @@ func CorsMiddleware() gin.HandlerFunc {
 }
 
 func main() {
+
+	var port = flag.String("port", "3000", "Enter a port number")
+	flag.Parse()
+
 	rc := controllers.NewResizeController(s3Config())
 
 	r := gin.Default()
@@ -34,7 +39,7 @@ func main() {
 	r.POST("/resize", rc.PostResize)
 	r.GET("/resize", rc.GetResize)
 
-	r.Run(":3000")
+	r.Run(":" + *port)
 }
 
 // AWS s3 config

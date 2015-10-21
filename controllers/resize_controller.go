@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/goamz/s3"
 	"github.com/nfnt/resize"
@@ -12,10 +13,13 @@ import (
 	"strconv"
 )
 
-// Form data struct
+// Form struct
 type Form struct {
-	Width  []string `form:"width[]"`
-	Height []string `form:"height[]"`
+	Sets []struct {
+		Width   string `form:"width" json:"width"`
+		Height  string `form:"height" json:"height"`
+		Quality string `form:"quality" json:"quality"`
+	} `form:"sets[] json:"sets"`
 }
 
 // Controller type
@@ -79,10 +83,16 @@ func (rc *ResizeController) GetResize(c *gin.Context) {
 func (rc *ResizeController) PostResize(c *gin.Context) {
 
 	// Empty formdata struct
-	formData := &Form{}
+	setData := &Form{}
 
 	// Bind empty struct to context
-	c.Bind(formData)
+	c.Bind(&setData)
+
+	if setData == nil {
+		c.BindJSON(&setData)
+	}
+
+	fmt.Println(setData)
 
 	// Get file
 	file, header, err := c.Request.FormFile("file")
@@ -94,11 +104,11 @@ func (rc *ResizeController) PostResize(c *gin.Context) {
 	filename := header.Filename
 
 	// Foreach set of dimensions given
-	for i := 0; i < len(formData.Width); i++ {
+	for i := 0; i < len(setData.Sets); i++ {
 
 		// Get height and width
-		height := formData.Width[i]
-		width := formData.Height[i]
+		height := setData.Sets[i].Width
+		width := setData.Sets[i].Height
 
 		// Crop file
 		finalFile := rc.Crop(height, width, file)

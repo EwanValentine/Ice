@@ -4,7 +4,8 @@
 
 1. If you have glide install - `$ glide update` if not, `$ go get`
 2. `$ go run main.go` or `$ go build && ./Ice`
-3. Add the following to your profile
+3. Build for Linux (amd64) ` $ GOARCH=amd64 GOOS=linux go build && ./Ice`
+4. Add the following to your profile
 
 ```
 export AWS_S3_BUCKET=""
