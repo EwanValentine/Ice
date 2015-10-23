@@ -15,11 +15,8 @@ import (
 
 // Form struct
 type Form struct {
-	Sets []struct {
-		Width   string `form:"width" json:"width"`
-		Height  string `form:"height" json:"height"`
-		Quality string `form:"quality" json:"quality"`
-	} `form:"sets[] json:"sets"`
+	Width  []string `form:"width[]" json:"width"`
+	Height []string `form:"height[]" json:"height"`
 }
 
 // Controller type
@@ -104,11 +101,11 @@ func (rc *ResizeController) PostResize(c *gin.Context) {
 	filename := header.Filename
 
 	// Foreach set of dimensions given
-	for i := 0; i < len(setData.Sets); i++ {
+	for i := 0; i < len(setData.Width); i++ {
 
 		// Get height and width
-		height := setData.Sets[i].Width
-		width := setData.Sets[i].Height
+		height := setData.Width[i]
+		width := setData.Height[i]
 
 		// Crop file
 		finalFile := rc.Crop(height, width, file)
