@@ -2,21 +2,28 @@ package controllers
 
 import (
 	"bytes"
-	"fmt"
+	_ "fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/goamz/s3"
 	"github.com/nfnt/resize"
 	"image"
 	"image/jpeg"
+	"image/png"
 	_ "image/png"
 	"mime/multipart"
+	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // Form struct
 type Form struct {
-	Width  []string `form:"width[]" json:"width"`
-	Height []string `form:"height[]" json:"height"`
+	Width  []string `form:"width[]"`
+	Height []string `form:"height[]"`
+}
+
+type Files struct {
+	Filename []string
 }
 
 // Controller type
@@ -82,14 +89,15 @@ func (rc *ResizeController) PostResize(c *gin.Context) {
 	// Empty formdata struct
 	setData := &Form{}
 
+	// Empty files struct
+	var files []string
+
 	// Bind empty struct to context
-	c.Bind(&setData)
+	c.Bind(setData)
 
 	if setData == nil {
 		c.BindJSON(&setData)
 	}
-
-	fmt.Println(setData)
 
 	// Get file
 	file, header, err := c.Request.FormFile("file")
@@ -100,21 +108,27 @@ func (rc *ResizeController) PostResize(c *gin.Context) {
 	// Get original filename
 	filename := header.Filename
 
+	// Get extension
+	ext := strings.Replace(filepath.Ext(filename), ".", "", -1)
+
 	// Foreach set of dimensions given
 	for i := 0; i < len(setData.Width); i++ {
 
 		// Get height and width
-		height := setData.Width[i]
-		width := setData.Height[i]
+		height := setData.Height[i]
+		width := setData.Width[i]
 
 		// Crop file
-		finalFile := rc.Crop(height, width, file)
+		finalFile := rc.Crop(height, width, file, ext)
 
 		// Include dimensions in filename to stop file being overriden
 		fileNameDimensions := "w" + width + "h" + height + "-" + filename
 
 		// Upload file
 		err, _ := rc.Upload("content/"+fileNameDimensions, finalFile, "image/jpeg", s3.BucketOwnerFull)
+
+		// Append file name to files list
+		files = append(files, fileNameDimensions)
 
 		if err != nil {
 			panic(err)
@@ -126,7 +140,7 @@ func (rc *ResizeController) PostResize(c *gin.Context) {
 		}
 	}
 
-	c.JSON(200, gin.H{"_message": true})
+	c.JSON(200, gin.H{"files": files})
 }
 
 // Uploads file to S3
@@ -136,7 +150,7 @@ func (rc *ResizeController) Upload(filename string, file []byte, enctype string,
 }
 
 // Crops image and returns []byte of file
-func (rc *ResizeController) Crop(height string, width string, file multipart.File) []byte {
+func (rc *ResizeController) Crop(height string, width string, file multipart.File, ext string) []byte {
 
 	// Decode image
 	image, _, err := image.Decode(file)
@@ -159,7 +173,13 @@ func (rc *ResizeController) Crop(height string, width string, file multipart.Fil
 
 	// Create new buffer of file
 	buf := new(bytes.Buffer)
-	err = jpeg.Encode(buf, m, nil)
+
+	switch {
+	case "jpg" == ext || "jpeg" == ext:
+		err = jpeg.Encode(buf, m, nil)
+	case "png" == ext:
+		err = png.Encode(buf, m)
+	}
 
 	if err != nil {
 		panic(err)
