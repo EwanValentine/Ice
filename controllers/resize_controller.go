@@ -137,14 +137,10 @@ func (rc *ResizeController) PostResize(c *gin.Context) {
 		fileNameDimensions := "w" + width + "h" + height + "-" + filename
 
 		// Upload file
-		err, _ := rc.Upload("content/"+fileNameDimensions, finalFile, "image/"+ext, s3.BucketOwnerFull)
+		rc.Upload("content/"+fileNameDimensions, finalFile, "image/"+ext, s3.BucketOwnerFull)
 
 		// Append file name to files list
 		files = append(files, fileNameDimensions)
-
-		if err != nil {
-			panic(err)
-		}
 
 		// Seek file back to first byte, so it can be re-cropped
 		if _, err := file.Seek(0, 0); err != nil {
@@ -156,9 +152,15 @@ func (rc *ResizeController) PostResize(c *gin.Context) {
 }
 
 // Uploads file to S3
-func (rc *ResizeController) Upload(filename string, file []byte, enctype string, acl s3.ACL) (error, string) {
-	err := rc.bucket.Put(filename, file, enctype, acl)
-	return err, filename
+func (rc *ResizeController) Upload(filename string, file []byte, enctype string, acl s3.ACL) {
+
+	// Made this into a goroutine, knocked 200ms off!!
+	go func(filename string, file []byte, enctype string, acl s3.ACL) {
+		err := rc.bucket.Put(filename, file, enctype, acl)
+		if err != nil {
+			panic(err)
+		}
+	}(filename, file, enctype, acl)
 }
 
 // Crops image and returns []byte of file
