@@ -100,13 +100,25 @@ func (rc *ResizeController) PostResize(c *gin.Context) {
 	}
 
 	// Get file
-	file, header, err := c.Request.FormFile("file")
-	if err != nil {
-		panic(err)
-	}
+	file, header, _ := c.Request.FormFile("file")
 
-	// Get original filename
-	filename := header.Filename
+	var filename string
+
+	if file == nil {
+
+		form := c.Request.MultipartForm
+		files := form.File["file"]
+		fileP, _ := files[0].Open()
+		defer fileP.Close()
+		file = fileP
+
+		filename = files[0].Filename
+
+	} else {
+
+		// Get original filename
+		filename = header.Filename
+	}
 
 	// Get extension
 	ext := strings.Replace(filepath.Ext(filename), ".", "", -1)
@@ -125,7 +137,7 @@ func (rc *ResizeController) PostResize(c *gin.Context) {
 		fileNameDimensions := "w" + width + "h" + height + "-" + filename
 
 		// Upload file
-		err, _ := rc.Upload("content/"+fileNameDimensions, finalFile, "image/jpeg", s3.BucketOwnerFull)
+		err, _ := rc.Upload("content/"+fileNameDimensions, finalFile, "image/"+ext, s3.BucketOwnerFull)
 
 		// Append file name to files list
 		files = append(files, fileNameDimensions)
@@ -174,6 +186,7 @@ func (rc *ResizeController) Crop(height string, width string, file multipart.Fil
 	// Create new buffer of file
 	buf := new(bytes.Buffer)
 
+	// Use correct encoder for file type
 	switch {
 	case "jpg" == ext || "jpeg" == ext:
 		err = jpeg.Encode(buf, m, nil)
