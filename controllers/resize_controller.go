@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"bytes"
-	_ "fmt"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/goamz/s3"
 	"github.com/nfnt/resize"
@@ -106,13 +106,22 @@ func (rc *ResizeController) PostResize(c *gin.Context) {
 
 	if file == nil {
 
+		fmt.Println("File missing")
+
+		var formFiles []*multipart.FileHeader
+
 		form := c.Request.MultipartForm
-		files := form.File["file"]
-		fileP, _ := files[0].Open()
+		formFiles = form.File["file[]"]
+
+		if formFiles == nil {
+			formFiles = form.File["file"]
+		}
+
+		fileP, _ := formFiles[0].Open()
 		defer fileP.Close()
 		file = fileP
 
-		filename = files[0].Filename
+		filename = formFiles[0].Filename
 
 	} else {
 
