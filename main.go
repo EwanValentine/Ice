@@ -37,6 +37,7 @@ func main() {
 
 	// Routes
 	r.POST("/resize", rc.PostResize)
+	r.POST("/resize-base64", rc.PostBase64Resize)
 	r.GET("/resize", rc.GetResize)
 
 	r.Run(":" + *port)

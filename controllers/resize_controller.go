@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/goamz/s3"
@@ -18,8 +19,10 @@ import (
 
 // Form struct
 type Form struct {
-	Width  []string `form:"width[]"`
-	Height []string `form:"height[]"`
+	Width    []string `form:"width[]" json:"width[]" binding:"required"`
+	Height   []string `form:"height[]" json:"height[]"`
+	File     string   `form:"file" json:"file"`
+	Filename string   `form:"filename" json:"filename"`
 }
 
 type Files struct {
@@ -81,6 +84,50 @@ func (rc *ResizeController) GetResize(c *gin.Context) {
 
 	// Return cropped image
 	c.Data(200, "image/jpeg", response)
+}
+
+func (rc *ResizeController) PostBase64Resize(c *gin.Context) {
+	setData := &Form{}
+
+	var files []string
+
+	c.Bind(setData)
+
+	if setData == nil {
+		c.BindJSON(setData)
+	}
+
+	fmt.Println(setData.Filename)
+
+	filename := setData.Filename
+
+	// Get extension
+	ext := strings.Replace(filepath.Ext(filename), ".", "", -1)
+
+	file := setData.File
+
+	// Foreach set of dimensions given
+	for i := 0; i < len(setData.Width); i++ {
+
+		// Get height and width
+		height := setData.Height[i]
+		width := setData.Width[i]
+
+		// Crop file
+		finalFile := rc.CropBase64(height, width, file, ext)
+
+		// Include dimensions in filename to stop file being overriden
+		fileNameDimensions := "w" + width + "h" + height + "-" + filename
+
+		// Upload file
+		rc.Upload("content/"+fileNameDimensions, finalFile, "image/"+ext, s3.BucketOwnerFull)
+
+		// Append file name to files list
+		files = append(files, fileNameDimensions)
+	}
+
+	c.JSON(200, gin.H{"files": files})
+
 }
 
 // PostResize - function for taking images and meta data and resizing
@@ -170,6 +217,41 @@ func (rc *ResizeController) Upload(filename string, file []byte, enctype string,
 			panic(err)
 		}
 	}(filename, file, enctype, acl)
+}
+
+func (rc *ResizeController) CropBase64(height string, width string, file string, ext string) []byte {
+
+	b64data := file[strings.IndexByte(file, ',')+1:]
+	reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(b64data))
+
+	image, _, err := image.Decode(reader)
+
+	if err != nil {
+		panic(err)
+	}
+
+	w64, err := strconv.ParseUint(width, 10, 32)
+	h64, err := strconv.ParseUint(height, 10, 32)
+
+	h := uint(h64)
+	w := uint(w64)
+
+	m := resize.Resize(w, h, image, resize.Lanczos3)
+
+	buf := new(bytes.Buffer)
+
+	switch {
+	case "jpg" == ext || "jpeg" == ext:
+		err = jpeg.Encode(buf, m, nil)
+	case "png" == ext:
+		err = png.Encode(buf, m)
+	}
+
+	if err != nil {
+		panic(err)
+	}
+
+	return buf.Bytes()
 }
 
 // Crops image and returns []byte of file
