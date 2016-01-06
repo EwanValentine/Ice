@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"github.65twenty.com/65twenty/Ice/controllers"
+	"github.com/EwanValentine/Ice/controllers"
 	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/goamz/aws"
 	"github.com/mitchellh/goamz/s3"
