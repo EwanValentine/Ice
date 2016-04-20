@@ -2,58 +2,58 @@ package main
 
 import (
 	"flag"
-	"github.com/EwanValentine/Ice/controllers"
-	"github.com/gin-gonic/gin"
-	"github.com/mitchellh/goamz/aws"
-	"github.com/mitchellh/goamz/s3"
+	"github.com/EwanValentine/Ice/drivers"
+	"github.com/EwanValentine/Ice/handlers"
+	"github.com/EwanValentine/Ice/services"
+	"github.com/labstack/echo"
+	"github.com/labstack/echo/engine/fasthttp"
+	"github.com/labstack/echo/middleware"
 	"log"
-	"os"
+	"runtime"
 )
 
-func CorsMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Writer.Header().Set("Content-Type", "application/json")
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+func Init() {
 
-		if c.Request.Method == "OPTIONS" {
-			c.Abort()
-			return
-		}
+	// Verbose loggin
+	log.SetFlags(log.Lshortfile)
 
-		c.Next()
-	}
+	// Use all available CPU cores
+	runtime.GOMAXPROCS(runtime.NumCPU())
 }
 
 func main() {
 
+	// Initialise application runtime settings
+	Init()
+
+	// Create new Echo instance
+	e := echo.New()
+
+	// Apply middlewares
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
+
+	// Get port number from flags
 	var port = flag.String("port", "3000", "Enter a port number")
+	var bucketName = flag.String("bucket", "main", "Enter a bucket name")
+
 	flag.Parse()
 
-	rc := controllers.NewResizeController(s3Config())
+	// Drivers
+	bucket := drivers.GetBucket(*bucketName)
 
-	r := gin.Default()
-	r.Use(CorsMiddleware())
+	// Services
+	uploader := services.NewUploadService(bucket)
+	cropper := services.NewCropService()
+
+	// Handlers
+	resizeHandler := handlers.NewResizeHandler(bucket, uploader, cropper)
 
 	// Routes
-	r.POST("/resize", rc.PostResize)
-	r.POST("/resize-base64", rc.PostBase64Resize)
-	r.GET("/resize", rc.GetResize)
+	e.Post("/resize", resizeHandler.PostResize)
+	e.Post("/resize-base64", resizeHandler.PostBase64Resize)
+	e.Get("/resize", resizeHandler.GetResize)
 
-	r.Run(":" + *port)
-}
-
-// AWS s3 config
-func s3Config() *s3.Bucket {
-	auth, err := aws.EnvAuth()
-	if err != nil {
-		log.Fatal(err)
-	}
-	// @todo - Make region configurable
-	client := s3.New(auth, aws.EUWest)
-	bucketName := os.Getenv("AWS_BUCKET_NAME")
-	if bucketName != "" {
-		return client.Bucket(bucketName)
-	}
-	return client.Bucket("20.65twenty.com")
+	// Run new fasthttp server instance
+	e.Run(fasthttp.New(":" + *port))
 }
