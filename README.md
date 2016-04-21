@@ -18,7 +18,7 @@ export AWS_SECRET_ACCESS_KEY=""
 Multiple dimension image cropping.
 
 ```
-POST /resize
+POST /{resize||crop} 
 
 BODY (json)
 {
