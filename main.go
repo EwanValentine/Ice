@@ -44,15 +44,31 @@ func main() {
 
 	// Services
 	uploader := services.NewUploadService(bucket)
-	cropper := services.NewCropService()
+	decoder := services.NewDecoderService()
+	resizer := services.NewResizeService(decoder)
+	cropper := services.NewCropService(decoder)
 
 	// Handlers
-	resizeHandler := handlers.NewResizeHandler(bucket, uploader, cropper)
+	resizeHandler := handlers.NewResizeHandler(
+		bucket,
+		uploader,
+		resizer,
+		decoder,
+	)
+
+	cropHandler := handlers.NewCropHandler(
+		bucket,
+		uploader,
+		cropper,
+		decoder,
+	)
 
 	// Routes
 	e.Post("/resize", resizeHandler.PostResize)
 	e.Post("/resize-base64", resizeHandler.PostBase64Resize)
 	e.Get("/resize", resizeHandler.GetResize)
+
+	e.Post("/crop", cropHandler.PostCrop)
 
 	// Run new fasthttp server instance
 	e.Run(fasthttp.New(":" + *port))

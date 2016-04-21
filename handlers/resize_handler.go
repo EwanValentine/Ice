@@ -5,9 +5,7 @@ import (
 	"github.com/EwanValentine/Ice/services"
 	"github.com/labstack/echo"
 	"github.com/mitchellh/goamz/s3"
-	"github.com/nfnt/resize"
 	"image"
-	"image/jpeg"
 	_ "image/png"
 	"log"
 	"path/filepath"
@@ -15,60 +13,32 @@ import (
 	"strings"
 )
 
-// Mass crop type
-type Mass struct {
-	Files []File `json:"files"`
-}
-
-// Single file upload and crop type - with an array of dimensions to
-// crop that single image to.
-type SingleUpload struct {
-	Filename   string      `json:"filename"`
-	Dimensions []Dimension `json:"dimensions"`
-	File       string      `json:"file"`
-}
-
-type Dimension struct {
-	Height uint `json:"height"`
-	Width  uint `json:"width"`
-}
-
-type File struct {
-	Filename   string      `json:"filename"`
-	Dimensions []Dimension `json:"dimensions"`
-}
-
-type Response struct {
-	Data interface{}            `json:"data"`
-	Meta map[string]interface{} `json:"_meta"`
-}
-
-type Error struct {
-	Message string `json:"_message"`
-	Code    int    `json:"code"`
-}
-
 // Controller type
 type ResizeHandler struct {
 	bucket   *s3.Bucket
 	uploader *services.UploadService
-	cropper  *services.CropService
+	resizer  *services.ResizeService
+	decoder  *services.DecoderService
 }
 
 // Controller instance
 func NewResizeHandler(
 	bucket *s3.Bucket,
 	uploader *services.UploadService,
-	cropper *services.CropService,
+	resizer *services.ResizeService,
+	decoder *services.DecoderService,
 ) *ResizeHandler {
 	return &ResizeHandler{
 		bucket,
 		uploader,
-		cropper,
+		resizer,
+		decoder,
 	}
 }
 
 // GetRezize - On the fly cropping and resizing.
+// Crops images based on url parameters. For example...
+// /resize?file=123.jpg&width=34&height=56
 func (handler *ResizeHandler) GetResize(c echo.Context) error {
 
 	// Set height and width
@@ -88,31 +58,31 @@ func (handler *ResizeHandler) GetResize(c echo.Context) error {
 	// Create new byte stream
 	img := bytes.NewReader(file)
 
+	// Get file ext
+	ext := strings.Replace(filepath.Ext(filename), ".", "", -1)
+
 	// Decode image
 	decoded, _, err := image.Decode(img)
 
-	// Crop image
-	cropped := resize.Resize(uint(width), uint(height), decoded, resize.Lanczos3)
-
-	// Create new output buffer
-	buf := new(bytes.Buffer)
-	jpeg.Encode(buf, cropped, nil)
-
-	// Response
-	response := buf.Bytes()
+	// Resize image
+	cropped, err := handler.resizer.Resize(uint(width), uint(height), decoded, ext)
 
 	// Return cropped image
-	return c.File(string(response))
+	return c.File(string(cropped))
 }
 
+// PostResize
+// Resizes images stored in S3 based on filename, against given
+// dimensions.
+// For example...
+// POST { "files": [ { "filename": "123.jpg", "dimensions: [ { "width": 50, "height": 50 } ] } ] }
 func (handler *ResizeHandler) PostResize(c echo.Context) error {
 	var data Mass
 	var files []string
 
 	c.Bind(&data)
 
-	log.Println(data)
-
+	// Foreach file
 	for i := 0; i < len(data.Files); i++ {
 
 		// Get dimensions
@@ -121,6 +91,7 @@ func (handler *ResizeHandler) PostResize(c echo.Context) error {
 		// File
 		filename := data.Files[i].Filename
 
+		// Foreach dimension
 		for d := 0; d < len(dimensions); d++ {
 
 			// Get file extension
@@ -129,11 +100,9 @@ func (handler *ResizeHandler) PostResize(c echo.Context) error {
 			height := dimensions[d].Height
 			width := dimensions[d].Width
 
-			heightString := strconv.Itoa(int(height))
-			widthString := strconv.Itoa(int(width))
+			finalFilename := GenerateFilename(height, width, filename)
 
-			finalFilename := "h" + heightString + "w" + widthString + "-" + filename
-
+			// Handle upload and crop process in the background as we don't need to wait for this
 			go func(height, width uint, filename, ext, finalFilename string) {
 
 				// Everything from here onwards is done after the response :D
@@ -143,11 +112,13 @@ func (handler *ResizeHandler) PostResize(c echo.Context) error {
 					log.Println(err)
 				}
 
+				decodedImage, _ := handler.decoder.DecodeBytes(original)
+
 				// Crop file
-				file := handler.cropper.CropByte(
+				file, _ := handler.resizer.Resize(
 					height,
 					width,
-					original,
+					decodedImage,
 					ext,
 				)
 
@@ -193,8 +164,11 @@ func (handler *ResizeHandler) PostBase64Resize(c echo.Context) error {
 		height := setData.Dimensions[i].Height
 		width := setData.Dimensions[i].Width
 
+		// Convert Base64 string to `image.Image`
+		decodedImage, _ := handler.decoder.DecodeBase64(file)
+
 		// Crop file
-		finalFile := handler.cropper.CropBase64(height, width, file, ext)
+		finalFile, _ := handler.resizer.Resize(height, width, decodedImage, ext)
 
 		// Include dimensions in filename to stop file being overriden
 		fileNameDimensions := "w" + string(width) + "h" + string(height) + "-" + filename
