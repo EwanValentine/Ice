@@ -112,6 +112,7 @@ func (handler *ResizeHandler) PostResize(c echo.Context) error {
 					log.Println(err)
 				}
 
+				// Decode image
 				decodedImage, _ := handler.decoder.DecodeBytes(original)
 
 				// Crop file
