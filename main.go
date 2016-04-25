@@ -69,6 +69,8 @@ func main() {
 	e.Get("/resize", resizeHandler.GetResize)
 
 	e.Post("/crop", cropHandler.PostCrop)
+	e.Post("/crop-base62", cropHandler.PostBase64Crop)
+	e.Get("/crop", cropHandler.GetCrop)
 
 	// Run new fasthttp server instance
 	e.Run(fasthttp.New(":" + *port))

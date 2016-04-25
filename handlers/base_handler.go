@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // Mass crop type
@@ -33,8 +35,8 @@ type Response struct {
 }
 
 type Error struct {
-	Message string `json:"_message"`
-	Code    int    `json:"code"`
+	Message interface{} `json:"_message"`
+	Code    int         `json:"code"`
 }
 
 // GenerateFilename
@@ -48,4 +50,15 @@ func GenerateFilename(height, width uint, filename string) string {
 
 	// Final file name, i.e `h50w50-original-filename.jpg`
 	return "h" + heightString + "w" + widthString + "-" + filename
+}
+
+// GetExtension - Extracts extension from filename
+func GetExtension(filename string) string {
+	return strings.Replace(filepath.Ext(filename), ".", "", -1)
+}
+
+// GenerateDimensionFilename - Generates the file name including
+// the crop/resize dimensions
+func GenerateDimensionFilename(height, width, filename, processType string) string {
+	return processType + "-w" + width + "h" + height + "-" + filename
 }

@@ -5,7 +5,9 @@ import (
 	"github.com/labstack/echo"
 	"github.com/mitchellh/goamz/s3"
 	"log"
+	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -28,6 +30,99 @@ func NewCropHandler(
 		cropper,
 		decoder,
 	}
+}
+
+// GetCrop - Fetch and crop an image on the fly
+func (handler *CropHandler) GetCrop(c echo.Context) error {
+
+	// Get height and width from url parameters
+	width, _ := strconv.Atoi(c.QueryParam("width"))
+	height, _ := strconv.Atoi(c.QueryParam("height"))
+
+	// Get file parameter
+	filename := c.QueryParam("file")
+	ext := GetExtension(filename)
+
+	// If no file given, not much we can do
+	if filename == "" {
+		return c.JSON(http.StatusNotFound, &Error{
+			Message: "No file given",
+			Code:    http.StatusNotFound,
+		})
+	}
+
+	// Fetch image from S3
+	file, err := handler.bucket.Get("content/" + filename)
+
+	// If file can't be fetched, throw a 404
+	if err != nil {
+		return c.JSON(http.StatusNotFound, &Error{
+			Message: "File not found in bucket",
+			Code:    http.StatusNotFound,
+		})
+	}
+
+	// Decode image from bytes to `image.Image`
+	img, err := handler.decoder.DecodeBytes(file)
+
+	// Crop image
+	cropped, err := handler.cropper.Crop(uint(width), uint(height), img, ext)
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, &Error{
+			Message: err,
+			Code:    http.StatusInternalServerError,
+		})
+	}
+
+	// Return cropped image
+	return c.File(string(cropped))
+}
+
+// PostBase64Crop - Crops a base64 image to various dimensions
+// then uploads them to S3
+func (handler *CropHandler) PostBase64Crop(c echo.Context) error {
+	var setData SingleUpload
+
+	var files []string
+
+	c.Bind(&setData)
+
+	filename := setData.Filename
+
+	// Get ext
+	ext := GetExtension(filename)
+
+	file := setData.File
+
+	// Foreach set of dimensions given
+	for i := 0; i < len(setData.Dimensions); i++ {
+
+		// Get height and width
+		height := setData.Dimensions[i].Height
+		width := setData.Dimensions[i].Width
+
+		// Include dimensions in filename to stop file being overriden
+		fileNameDimensions := GenerateDimensionFilename(string(height), string(width), filename, "crop")
+
+		go func(file string, height, width uint, fileNameDimensions, ext string) {
+
+			// Decode Base64 image to `image.Image`
+			decodedImage, _ := handler.decoder.DecodeBase64(file)
+
+			// Crop image
+			finalFile, _ := handler.cropper.Crop(height, width, decodedImage, ext)
+
+			handler.uploader.Upload("content/"+fileNameDimensions, finalFile, "image/"+ext, s3.BucketOwnerFull)
+		}(file, height, width, fileNameDimensions, ext)
+
+		files = append(files, fileNameDimensions)
+	}
+
+	return c.JSON(http.StatusOK, &Response{
+		Data: files,
+		Meta: map[string]interface{}{},
+	})
 }
 
 // PostCrop

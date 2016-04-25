@@ -1,13 +1,11 @@
 package handlers
 
 import (
-	"bytes"
 	"github.com/EwanValentine/Ice/services"
 	"github.com/labstack/echo"
 	"github.com/mitchellh/goamz/s3"
-	"image"
-	_ "image/png"
 	"log"
+	"net/http"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -46,29 +44,43 @@ func (handler *ResizeHandler) GetResize(c echo.Context) error {
 	height, _ := strconv.Atoi(c.QueryParam("height"))
 
 	// Get file
-	filename := c.Param("file")
+	filename := c.QueryParam("file")
+	ext := GetExtension(filename)
+
+	// If STILL no file given, well, what else can we do?
+	if filename == "" {
+		return c.JSON(http.StatusNotFound, &Error{
+			Message: "No file given",
+			Code:    http.StatusNotFound,
+		})
+	}
 
 	// Get image
 	file, err := handler.bucket.Get("content/" + filename)
 
+	// If file can't be fetched, throw a 404
 	if err != nil {
-		log.Println(err)
+		return c.JSON(http.StatusNotFound, &Error{
+			Message: err,
+			Code:    http.StatusNotFound,
+		})
 	}
 
-	// Create new byte stream
-	img := bytes.NewReader(file)
-
-	// Get file ext
-	ext := strings.Replace(filepath.Ext(filename), ".", "", -1)
-
-	// Decode image
-	decoded, _, err := image.Decode(img)
+	// Decode image from bytes to `image.Image`
+	img, err := handler.decoder.DecodeBytes(file)
 
 	// Resize image
-	cropped, err := handler.resizer.Resize(uint(width), uint(height), decoded, ext)
+	resized, err := handler.resizer.Resize(uint(width), uint(height), img, ext)
 
-	// Return cropped image
-	return c.File(string(cropped))
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, &Error{
+			Message: err,
+			Code:    http.StatusInternalServerError,
+		})
+	}
+
+	// Return resized image
+	return c.File(string(resized))
 }
 
 // PostResize
@@ -154,7 +166,7 @@ func (handler *ResizeHandler) PostBase64Resize(c echo.Context) error {
 	filename := setData.Filename
 
 	// Get extension
-	ext := strings.Replace(filepath.Ext(filename), ".", "", -1)
+	ext := GetExtension(filename)
 
 	file := setData.File
 
@@ -165,20 +177,24 @@ func (handler *ResizeHandler) PostBase64Resize(c echo.Context) error {
 		height := setData.Dimensions[i].Height
 		width := setData.Dimensions[i].Width
 
-		// Convert Base64 string to `image.Image`
-		decodedImage, _ := handler.decoder.DecodeBase64(file)
-
-		// Crop file
-		finalFile, _ := handler.resizer.Resize(height, width, decodedImage, ext)
-
 		// Include dimensions in filename to stop file being overriden
-		fileNameDimensions := "w" + string(width) + "h" + string(height) + "-" + filename
+		finalFilename := GenerateDimensionFilename(string(height), string(width), filename, "resize")
 
-		// Upload file
-		handler.uploader.Upload("content/"+fileNameDimensions, finalFile, "image/"+ext, s3.BucketOwnerFull)
+		go func(file string, height, width uint, finalFilename, ext string) {
+
+			// Convert Base64 string to `image.Image`
+			decodedImage, _ := handler.decoder.DecodeBase64(file)
+
+			// Crop file
+			finalFile, _ := handler.resizer.Resize(height, width, decodedImage, ext)
+
+			// Upload file
+			handler.uploader.Upload("content/"+finalFilename, finalFile, "image/"+ext, s3.BucketOwnerFull)
+
+		}(file, height, width, finalFilename, ext)
 
 		// Append file name to files list
-		files = append(files, fileNameDimensions)
+		files = append(files, finalFilename)
 	}
 
 	return c.JSON(200, &Response{
